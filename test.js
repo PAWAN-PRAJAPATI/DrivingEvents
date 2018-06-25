@@ -1,15 +1,16 @@
 import React, { Component } from 'react'
-import { View, Text, TouchableOpacity,Platform,AppState,Alert,AsyncStorage,Image,PermissionsAndroid} from 'react-native'
+import { View, Text, TouchableOpacity,Platform, TextInput,Alert,AsyncStorage, StyleSheet,ScrollView,Image,Slider,Button ,TouchableHighlight,PermissionsAndroid} from 'react-native'
 import { AnimatedCircularProgress } from 'react-native-circular-progress'
 import FusedLocation from 'react-native-fused-location';
+import SQLite from 'react-native-sqlite-storage'
 import BackgroundGeolocation from 'react-native-mauron85-background-geolocation';
 import images from './images'
 import RNSettings from 'react-native-settings'
 import {styles} from './styles'
-import AppDB from './AppDB'
+
 console.disableYellowBox = true
 
-var appDB = new AppDB("my.db","default")
+
 export default class Bar extends Component {
 
 
@@ -29,6 +30,7 @@ export default class Bar extends Component {
 
 
  state = {
+    
     trackingStatus:'Start Tracking',
     stop:0.0,
     acc:0.0,
@@ -40,49 +42,15 @@ export default class Bar extends Component {
     sharp_turn:0.0,
     harsh_acc:0.0,
     timestampSum:0
-  }
-
-
-  //called when component is launched
-  async componentWillMount(){
-
-    appDB.getTimestampSum(this.progressbar_display_all)
-    
-    console.log("WillMount")
-    setInterval(()=>{
-      //update progress bars every second if tracking is on and app is not in background
-      if(AppState.currentState=='active' && this.state.trackingStatus=='Stop Tracking'){
-        console.log(AppState.currentState)
-        appDB.getTimestampSum(this.progressbar_display_all)
-      }
-
-    },1000)
 
   }
-
-  progressbar_display_all=(total,tx)=>{
-
-    this.setState({timestampSum:total})
-
-    this.progressbar_display('harsh_acc',tx)
-    this.progressbar_display('running',tx)
-    this.progressbar_display('stop',tx)
-    this.progressbar_display('turn',tx)
-    this.progressbar_display('deacc',tx)
-    this.progressbar_display('short break',tx)
-    this.progressbar_display('speeding',tx)
-    this.progressbar_display('sharp_turn',tx)
-    this.progressbar_display('acc',tx)
-  
-  }
-
 
 
   progressbar_display=(event,tx)=>{
   
     var percentage = 0
-    appDB.getEventTimestampSum(tx,event,(eventTimeSum)=>{
-      console.log(eventTimeSum,"eventTimeStamp")
+    tx.executeSql("SELECT SUM(curr_timestamp-last_timestamp) FROM Events WHERE event ='"+event+"'" ,[], (tx, results) => {
+      eventTimeSum= results.rows.item(0)['SUM(curr_timestamp-last_timestamp)']
       if(eventTimeSum){
         console.log(event,(eventTimeSum/this.state.timestampSum)*100)
         percentage = (eventTimeSum/this.state.timestampSum)*100
@@ -91,38 +59,82 @@ export default class Bar extends Component {
         obj[event] =percentage
         this.setState(obj);
       }
-    })
-       
+
+    });
   }
 
+create=()=>{
+    //Create required tables
+      var db = SQLite.openDatabase({name: 'my.db', location: 'default'});
+      db.transaction((tx) => {
+      tx.executeSql('CREATE TABLE IF NOT EXISTS Location('+
+                        'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,'+
+                        'timestamp REAL,'+
+                        'lat varchar(255),'+
+                        'long varchar(255),'+
+                        'bearing REAL,'+
+                        'speed REAL,'+
+                        'accuracy REAL)');
 
+      tx.executeSql('CREATE TABLE IF NOT EXISTS Events('+
+                        'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,'+
+                        'sync INTGER,'+
+
+                        'event varchar(255),'+
+
+                        'last_timestamp REAL,'+
+                        'curr_timestamp REAL,'+
+
+                        'last_lat varchar(255),'+
+                        'curr_lat varchar(255),'+
+
+                        'last_long varchar(255),'+
+                        'curr_long varchar(255),'+
+
+
+                        'last_bearing REAL,'+
+                        'curr_bearing REAL,'+
+
+                        'last_speed REAL,'+
+                        'curr_speed REAL)',
+                    );
+
+        console.log("Database Created");
+      });
+  }
 
 add = (timestamp, lat, long, bearing, speed, accu, settings, bearing_diff, start_bearing_obj, stop_bearing_obj)=>{
       var speed = speed*3.6 //convert speed from m/s to km/h
       var event = "null"
       console.log(event)
- 
+      //console.log("Turn:",k.turn)
 
-      //var accu1 = accu.toFixed(2)
+      var db = SQLite.openDatabase({name: 'my.db', location: 'default'});
+      db.transaction((tx) => {
+
+      var accu1 = accu.toFixed(2)
       var lat1 = JSON.stringify(lat)
       var long1 = JSON.stringify(long)
 
       //insert all the required attribute in Location database
-      //tx.executeSql("Insert into Location (timestamp,lat,long,bearing,speed,accuracy) values("+timestamp+",'"+lat1+"','"+long1+"',"+bearing+","+speed+","+accu1+");")
+      tx.executeSql("Insert into Location (timestamp,lat,long,bearing,speed,accuracy) values("+timestamp+",'"+lat1+"','"+long1+"',"+bearing+","+speed+","+accu1+");")
+      console.log("Inserted into Location");
       //get the last record from the database
-      //call loginLoop as call back wiht event_row as last event
-      appDB.getLastRow(this.logicLoop, start_bearing_obj, stop_bearing_obj, event, lat1, long1, speed, bearing, timestamp, bearing_diff, settings)
-
+      //Appdb.getLastRow(callback,tx)
+      tx.executeSql('SELECT * from Events ORDER BY id DESC LIMIT 1', [], (tx, results) => {
+        var event_row = results.rows.item(0) //last record from event database
+        //Determines driving events                
+        this.logicLoop(tx, event_row, start_bearing_obj, stop_bearing_obj, event, lat1, long1, speed, bearing, timestamp, bearing_diff, settings)
+     
+        });
+    });
   }
-
 //Determines driving event                
 logicLoop=(tx,event_row,start_bearing_obj,stop_bearing_obj,event,lat1,long1,speed,bearing,timestamp,bearing_diff,settings)=>{
-    console.log("In logic")
 
     //when there are no recordes in Events table
     if(!event_row){
-        appDB.insert_new(tx,event,timestamp,lat1,long1,speed,bearing)
-        //tx.executeSql("Insert into Events "+event_query+" values(0,'stop',"+timestamp+","+timestamp+",'"+lat1+"','"+lat1+"','"+long1+"','"+long1+"',"+bearing+","+bearing+","+speed+","+speed+");")
+        tx.executeSql("Insert into Events "+event_query+" values(0,'stop',"+timestamp+","+timestamp+",'"+lat1+"','"+lat1+"','"+long1+"','"+long1+"',"+bearing+","+bearing+","+speed+","+speed+");")
         return
     }
 
@@ -157,22 +169,21 @@ logicLoop=(tx,event_row,start_bearing_obj,stop_bearing_obj,event,lat1,long1,spee
 
 //insert event into database
 insertEvent(tx,event,lat1,long1,speed,bearing,timestamp,event_row){
-  console.log("Helllo")
   //whene there is significant diffrenece beetween last and current timestamp
   //if time stamp difference between last event and current event is greater than 60*3s than initiate new event wiht current timestamp
   
   if(timestamp - event_row.last_timestamp > 60000*3){
-    appDB.insert_new(tx,event,timestamp,lat1,long1,speed,bearing)
+    this.insert_new(tx,event,timestamp,lat1,long1,speed,bearing)
     console.log("1evnet")
    }
    //Continue adding events with continious timestamp
   else if(event_row.event!=event || timestamp - event_row.last_timestamp > 15000){
-    appDB.insert_continue(tx,event,lat1,long1,speed,bearing,timestamp,event_row)
+    this.insert_continue(tx,event,lat1,long1,speed,bearing,timestamp,event_row)
     console.log("2evnet")
   }
   //extend event
   else{
-    appDB.update(tx,lat1,long1,speed,bearing,timestamp,event_row)
+   this.update(tx,lat1,long1,speed,bearing,timestamp,event_row)
    console.log("3evnet")
   }
 }
@@ -203,6 +214,7 @@ getEvent(speed,settings,event_row){
        event = "harsh_acc"                 
    }
 
+
   else if(speed - event_row.curr_speed > settings.acceleration){
       event = "acc"      
   }
@@ -221,27 +233,87 @@ getEvent(speed,settings,event_row){
   else{
        event = "running"
    }
-  console.log("get:",event)
+   console.log("get",event)
   return event
 }
 
 turn(tx,start_bearing_obj,stop_bearing_obj,event,lat1,long1,speed,bearing,timestamp,event_row){
     //significant time difference between last and current timestamp(55sec here)
     if(timestamp - event_row.last_timestamp > 55*1000){
-    appDB.insert_new(tx,event,lat1,long1,speed,bearing)
+    this.insert_new(tx,event,lat1,long1,speed,bearing)
     }
 
-    //when last event is not equal to current event
+    //when last event is equal to current event
     else if(event_row.event!=event){
-        appDB.insert_turn(tx,start_bearing_obj,stop_bearing_obj,event,lat1,long1,speed,bearing,timestamp,event_row)
+
+        tx.executeSql('SELECT * from Events' + " where last_timestamp >="+start_bearing_obj.timestamp+" and "+
+        "curr_timestamp<=" + stop_bearing_obj.timestamp , [], (tx, results) => {
+        //if there is no event between the timespan where turn is detected then insert 
+        //new turn event with contiuing timestamp as of last event in the Event table
+        if(results.rows.length<=0){
+            this.insert_continue(tx,event,lat1,long1,speed,bearing,timestamp,event_row)
+            console.log("Inserted turn")
+        }
+        //else update all the events recorded in the timespan where turn in recorded to turn event
+        //In case the prediction of turn event is wrong then other events are not missed
+        else{
+            tx.executeSql("UPDATE Events set "+
+            "event='"+event+"'"+
+            " where last_timestamp >="+start_bearing_obj.timestamp+" and "+
+            "curr_timestamp<=" + stop_bearing_obj.timestamp);
+            console.log("Update into turn *****")
+        }
+      });
     }
     //Extend event when last event is equal to current event
     else{
-        appDB.update(tx,lat1,long1,speed,bearing,timestamp,event_row)
+        this.update(tx,lat1,long1,speed,bearing,timestamp,event_row)
     }
   }
 
+//insert event in continious timestamp(prev timestamp == next.current_timestamp)
+insert_continue(tx,event,lat1,long1,speed,bearing,timestamp,event_row){
+  tx.executeSql("Insert into Events "+event_query+" values(0,'"+event+"',"+event_row.curr_timestamp+","+timestamp+",'"+event_row.curr_lat+"','"+lat1+"','"+event_row.curr_long+"','"+long1+"',"+event_row.curr_bearing+","+bearing+","+event_row.curr_speed+","+speed+");")
+}
+//insert event in non continious timestamp(next.current_timestamp == next.previous_timestamp)
+insert_new(tx,event,timestamp,lat1,long1,speed,bearing){
+  tx.executeSql("Insert into Events "+event_query+" values(0,'"+event+"',"+timestamp+","+timestamp+",'"+lat1+"','"+lat1+"','"+long1+"','"+long1+"',"+bearing+","+bearing+","+speed+","+speed+");")
+}
 
+//extend the event
+update(tx,lat1,long1,speed,bearing,timestamp,event_row){
+  tx.executeSql("UPDATE Events set "+
+              "curr_lat ='"+lat1+ "',"+
+              "curr_long ='"+long1+ "',"+
+              "curr_speed ="+speed+ ","+
+              "curr_bearing ="+bearing+ ","+
+              "curr_timestamp ="+timestamp +
+              " where id ="+event_row.id);
+}
+
+ //called when component in launched
+ async componentWillMount(){
+
+  var db = SQLite.openDatabase({name: 'my.db', location: 'default'});
+
+  db.transaction((tx) => {
+    tx.executeSql("SELECT SUM(curr_timestamp-last_timestamp) FROM Events WHERE event !='stop'" ,[], (tx,results) => {
+      total = results.rows.item(0)['SUM(curr_timestamp-last_timestamp)']
+      this.setState({timestampSum:total})
+    });
+
+  this.progressbar_display('harsh_acc',tx)
+  this.progressbar_display('running',tx)
+  this.progressbar_display('stop',tx)
+  this.progressbar_display('turn',tx)
+  this.progressbar_display('deacc',tx)
+  this.progressbar_display('short break',tx)
+  this.progressbar_display('speeding',tx)
+  this.progressbar_display('sharp_turn',tx)
+  this.progressbar_display('acc',tx)
+ });
+
+}
 
 //button start-stop text logic
 trackingButton=() =>{
@@ -268,6 +340,7 @@ trackingButton=() =>{
 
 start_tracking_ios=()=>{
     var settings = this.state.settings
+    this.create()
     
 
     //configure GPS
@@ -281,9 +354,9 @@ start_tracking_ios=()=>{
       startOnBoot: false,
       stopOnTerminate: false,
       locationProvider: BackgroundGeolocation.ACTIVITY_PROVIDER,
-      interval: 5000,
-      fastestInterval: 3000,
-      activitiesInterval: 3000,
+      interval: 1000,
+      fastestInterval: 500,
+      activitiesInterval: 1000,
       stopOnStillActivity: false,
 
     });
@@ -457,8 +530,10 @@ async start_tracking_android(){
     var settings = this.state.settings
 
     if (granted) {
+      this.create()
 
        FusedLocation.setLocationPriority(FusedLocation.Constants.HIGH_ACCURACY);
+       //var location_prev =  FusedLocation.getFusedLocation();
        FusedLocation.setLocationPriority(FusedLocation.Constants.HIGH_ACCURACY);
        FusedLocation.setLocationInterval(2000);
        FusedLocation.setFastestLocationInterval(1000);
@@ -466,7 +541,7 @@ async start_tracking_android(){
 
        FusedLocation.startLocationUpdates();
        //get location form gps
-       var obj = {location_prev:"none",start_bearing_obj:{},stop_bearing_obj:{},isTurn:0}
+       var obj = {location_prev:"none",start_bearing_obj:{},stop_bearing_obj:{},flag:0}
        this.subscription = FusedLocation.on('fusedLocation', location => {
         
         location.timestamp = parseInt(location.timestamp)
@@ -479,18 +554,15 @@ async start_tracking_android(){
   
         console.log("location",location)
   
-        //return abs diff between bearing when the turn started and end
+        
         var bearing_diff =  this.bearingLogic(location,obj)
         obj.location_prev = location
         console.log("B1:",obj.start_bearing_obj)
         console.log("B2:",obj.stop_bearing_obj)
-        console.log("obj:",obj.isTurn)
-  
   
         this.add(parseInt(location.time),  location.latitude,  location.longitude,  location.bearing,
-                  location.speed,  location.accuracy,  settings,  bearing_diff,  obj.start_bearing_obj,  obj.stop_bearing_obj)
-      });
-  
+        location.speed,  location.accuracy,  settings,  bearing_diff,  obj.start_bearing_obj,  obj.stop_bearing_obj)      
+       });
 
        this.errSubscription = FusedLocation.on('fusedLocationError', error => {
             console.log(error)
@@ -516,39 +588,12 @@ async start_tracking_android(){
      FusedLocation.off(this.errSubscription);
      FusedLocation.stopLocationUpdates();
    }
-   deleteDB(){
-    Alert.alert(
-      'Delete Data',
-      'Tap OK to clear AppData',
-      [
-        {text: 'Cancel', onPress: () => console.log('Cancel Pressed'), style: 'cancel'},
-        {text: 'OK', onPress: () => {
-          appDB.delete()
-          this.setState(
-            {
-              stop:0.0,
-              acc:0.0,
-              turn:0.0,
-              deacc:0.0,
-              short_break:0.0,
-              running:0.0,
-              speeding:0.0,
-              sharp_turn:0.0,
-              harsh_acc:0.0,
-            }
-          )
-        }},
-      ],
-      { cancelable: false }
-    )
-   }
 
     render(){
       const { navigate } = this.props.navigation;
 
         return (
                 <View style = {styles.barContainer}>
-                <View style={{flex:1,justifyContent:'space-around'}}>
                   <View style = {styles.mainBarContainer}>
                       <View style={{width:'68%',alignItems:'flex-end'}}>
                           <AnimatedCircularProgress
@@ -652,34 +697,34 @@ async start_tracking_android(){
                         <Text>Cornering</Text>
                         </View>
               </View>
-              </View>
 
-              <View style-={{flex:2,backgroundColor:'red',justifyContent:'space-between'}}>    
+              <View>    
                  <TouchableOpacity
                   style = {styles.Button} onPress={this.trackingButton}>
                   <Text style = {styles.ButtonText}>{this.state.trackingStatus}</Text>
                   </TouchableOpacity>
-
-                  <View style={{flexDirection:'row',justifyContent:'space-between'}}>
+         
                   <TouchableOpacity
                     onPress={() => navigate("DrivingEvents")}
-                    style = {[styles.Button,{flex:2,height:37}]}>
+                    style = {styles.Button}>
                   <Text style = {styles.ButtonText}>View Event</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => navigate("DrivingMap")}
-                    style = {[styles.Button,{flex:2,height:37}]}>
+                    onPress={() => navigate("DrivignMap")}
+                    style={styles.Button}>
                     <Text style = {styles.ButtonText}>Driving Map</Text>
                   </TouchableOpacity>
-                  </View>
-
                   <TouchableOpacity
-                    onPress={() => this.deleteDB()}
+                    onPress={() => this.test1Static()}
                     style={styles.Button}>
-                    <Text style = {styles.ButtonText}>Delete</Text>
+                    <Text style = {styles.ButtonText}>Upload</Text>
                   </TouchableOpacity>
              </View>
             </View>
           )
     }
   }
+
+
+
+const event_query = '(sync,event,last_timestamp,curr_timestamp,last_lat,curr_lat,last_long,curr_long,last_bearing,curr_bearing,last_speed,curr_speed) '

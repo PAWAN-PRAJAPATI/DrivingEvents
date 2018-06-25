@@ -51,14 +51,14 @@ create=()=>{
   }
 
 
-  getLastRow(logicLoop, start_bearing_obj, stop_bearing_obj, event, lat1, long1, speed, bearing, timestamp, bearing_diff, settings){
+  getLastRow(callback, start_bearing_obj, stop_bearing_obj, event, lat1, long1, speed, bearing, timestamp, bearing_diff, settings){
     console.log("In app DB")
     this.db.transaction((tx)=>{
 
       tx.executeSql('SELECT * from Events ORDER BY id DESC LIMIT 1', [], (tx, results) => {
         var event_row = results.rows.item(0) //last record from event database
         //Determines driving events                
-        logicLoop(tx,event_row,start_bearing_obj,stop_bearing_obj,event,lat1,long1,speed,bearing,timestamp,bearing_diff,settings)
+        callback(tx,event_row,start_bearing_obj,stop_bearing_obj,event,lat1,long1,speed,bearing,timestamp,bearing_diff,settings)
 
       });
 
@@ -134,6 +134,15 @@ create=()=>{
       });
     });
   }
+
+  delete(){
+    console.log("Delete")
+    this.db.transaction((tx) => {
+        tx.executeSql("delete from Events")
+        tx.executeSql("delete from Location")
+    });
+  }
+
 
 }
 

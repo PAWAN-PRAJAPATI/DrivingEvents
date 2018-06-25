@@ -84,7 +84,9 @@ const styles = StyleSheet.create({
             fontSize:20,
         },
         barContainer: {
-            paddingTop: 14,
+            flex:1,
+            marginTop:10,
+            marginBottom:'1%',
             justifyContent: 'space-between'
         },
         mainBarContainer:{
