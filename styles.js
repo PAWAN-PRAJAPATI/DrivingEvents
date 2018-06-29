@@ -12,7 +12,7 @@ const styles = StyleSheet.create({
             fontSize: 40
         },
         appLogo: {
-            marginTop: 50,
+            marginTop: '50%',
             height: 200,
             width: 200,
             alignItems: 'center',
@@ -91,7 +91,8 @@ const styles = StyleSheet.create({
         },
         mainBarContainer:{
             alignItems:'center',
-            flexDirection: 'row'
+            flexDirection: 'column',
+            justifyContent:'center'
         },
         linearBarContainer : {
             marginTop:10,
@@ -105,7 +106,6 @@ const styles = StyleSheet.create({
             backgroundColor: '#00897B',
             padding: 10,
             margin:8,
-            height: 37,
             alignItems: 'center'
         },
         ButtonText:{

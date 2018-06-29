@@ -1,5 +1,5 @@
 import React, { Component } from 'react'
-import { View, Text, TouchableOpacity,Platform,AppState,Alert,AsyncStorage,Image,PermissionsAndroid} from 'react-native'
+import { View, Text, TouchableOpacity,Platform,AppState,Alert,AsyncStorage,Image,PermissionsAndroid,Dimensions,StatusBar} from 'react-native'
 import { AnimatedCircularProgress } from 'react-native-circular-progress'
 import FusedLocation from 'react-native-fused-location';
 import BackgroundGeolocation from 'react-native-mauron85-background-geolocation';
@@ -45,6 +45,13 @@ export default class Bar extends Component {
 
   //called when component is launched
   async componentWillMount(){
+    var height = Dimensions.get('screen').height
+    var width = Dimensions.get('screen').width
+    var ratio_large = (height)/6
+    var ratio_small = (height)/8
+
+
+    console.log(height,width)
 
     appDB.getTimestampSum(this.progressbar_display_all)
     
@@ -57,6 +64,8 @@ export default class Bar extends Component {
       }
 
     },1000)
+
+    this.setState({ratio_large:ratio_large,ratio_small})
 
   }
 
@@ -547,12 +556,17 @@ async start_tracking_android(){
       const { navigate } = this.props.navigation;
 
         return (
+
                 <View style = {styles.barContainer}>
+                <StatusBar
+                backgroundColor="#004D46"
+                barStyle="light-content"
+                />
                 <View style={{flex:1,justifyContent:'space-around'}}>
                   <View style = {styles.mainBarContainer}>
-                      <View style={{width:'68%',alignItems:'flex-end'}}>
+                      <View style={{alignItems:'flex-end'}}>
                           <AnimatedCircularProgress
-                            size={120}
+                            size={this.state.ratio_large}
                             width={13}
                             tintColor="green"
                             rotation={0}
@@ -568,18 +582,16 @@ async start_tracking_android(){
                           </AnimatedCircularProgress>
                       </View>
 
-                      <View style={{width:'42%',alignItems:'flex-start',padding:20}} >
-                          <Text>Average</Text>
-                          <Text>Overall</Text>
-                        <Text>Score</Text>
-
+                      <View style={{alignItems:'flex-start',padding:10}} >
+                          <Text>Average Overall Score</Text>
+                          
                       </View>
                 </View>
 
                 <View style = {styles.linearBarContainer}>
                     <View style={styles.progressBar}>
                         <AnimatedCircularProgress
-                          size={80}
+                          size={this.state.ratio_small}
                           width={8}
                           tintColor="#ef5350"
                           rotation={0}
@@ -597,7 +609,7 @@ async start_tracking_android(){
                     </View>
                     <View style={styles.progressBar}>
                         <AnimatedCircularProgress
-                          size={80}
+                          size={this.state.ratio_small}
                           width={8}
                           tintColor="#ef5350"
                           rotation={0}
@@ -617,7 +629,7 @@ async start_tracking_android(){
               <View style = {styles.linearBarContainer}>
                 <View style={styles.progressBar}>
                 <AnimatedCircularProgress
-                  size={80}
+                  size={this.state.ratio_small}
                   width={8}
                   tintColor="#ef5350"
                   rotation={0}
@@ -635,7 +647,7 @@ async start_tracking_android(){
                         </View>
                         <View style={styles.progressBar}>
                         <AnimatedCircularProgress
-                          size={80}
+                          size={this.state.ratio_small}
                           width={8}
                           tintColor="#ef5350"
                           rotation={0}
@@ -654,7 +666,7 @@ async start_tracking_android(){
               </View>
               </View>
 
-              <View style-={{flex:2,backgroundColor:'red',justifyContent:'space-between'}}>    
+              <View style-={{flex:1,justifyContent:'space-between'}}>    
                  <TouchableOpacity
                   style = {styles.Button} onPress={this.trackingButton}>
                   <Text style = {styles.ButtonText}>{this.state.trackingStatus}</Text>
@@ -663,12 +675,12 @@ async start_tracking_android(){
                   <View style={{flexDirection:'row',justifyContent:'space-between'}}>
                   <TouchableOpacity
                     onPress={() => navigate("DrivingEvents")}
-                    style = {[styles.Button,{flex:2,height:37}]}>
+                    style = {[styles.Button,{flex:1}]}>
                   <Text style = {styles.ButtonText}>View Event</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => navigate("DrivingMap")}
-                    style = {[styles.Button,{flex:2,height:37}]}>
+                    style = {[styles.Button,{flex:1}]}>
                     <Text style = {styles.ButtonText}>Driving Map</Text>
                   </TouchableOpacity>
                   </View>
@@ -683,3 +695,4 @@ async start_tracking_android(){
           )
     }
   }
+var per = Dimensions.get('window')[0]

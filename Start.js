@@ -1,5 +1,5 @@
 import React, { Component } from 'react'
-import { View, Text,Image, StyleSheet,TouchableOpacity,AsyncStorage,Platform} from 'react-native'
+import { View, Text,Image,AsyncStorage,StatusBar} from 'react-native'
 import SQLite from 'react-native-sqlite-storage'
 import images from './images'
 import { StackActions, NavigationActions } from 'react-navigation';
@@ -9,6 +9,12 @@ import AppDB from './AppDB'
 var appDB = new AppDB("my.db","location")
 
 export default class Start extends Component {
+
+  static navigationOptions = ({ navigation }) => {
+    return{
+      header:null,
+  }
+};
 
   api=()=>{
     console.log("api")
@@ -117,6 +123,10 @@ export default class Start extends Component {
   render(){
       return (
               <View style = {styles.container}>
+                    <StatusBar
+                backgroundColor="#004D46"
+                barStyle="light-content"
+                />
                 <Image style={styles.appLogo} source={images.icon} onLoad={()=>setTimeout(()=>{this.startup()},1500)}/>
                 <Text style = {styles.appNameText}>Driving Events</Text>
               </View>
